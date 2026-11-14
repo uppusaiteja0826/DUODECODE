@@ -1,0 +1,171 @@
+
+{% extends "base.html" %}
+
+{% block title %}My Requests - DUODECODE{% endblock %}
+
+{% block head %}
+<style>
+    .page-heading {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .page-heading h1 {
+        color: #172554;
+        margin-bottom: 10px;
+    }
+
+    .page-heading p {
+        color: #64748b;
+    }
+
+    .request-section {
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+    }
+
+    .request-section h2 {
+        color: #1e40af;
+        margin-bottom: 18px;
+    }
+
+    .request-card {
+        border: 1px solid #e2e8f0;
+        padding: 20px;
+        border-radius: 9px;
+        margin-bottom: 15px;
+    }
+
+    .request-card h3 {
+        color: #172554;
+        margin-bottom: 10px;
+    }
+
+    .request-card p {
+        color: #64748b;
+        margin-bottom: 10px;
+    }
+
+    .status {
+        display: inline-block;
+        padding: 6px 12px;
+        background: #dbeafe;
+        color: #1e40af;
+        border-radius: 20px;
+        font-size: 13px;
+        margin-top: 5px;
+    }
+
+    .empty-message {
+        text-align: center;
+        color: #64748b;
+        background: #f8fafc;
+        padding: 22px;
+        border-radius: 8px;
+    }
+
+    .action-btn {
+        display: inline-block;
+        padding: 9px 16px;
+        border: none;
+        border-radius: 6px;
+        background: #1d4ed8;
+        color: white;
+        cursor: pointer;
+        margin: 8px 5px 0 0;
+    }
+
+    .reject-btn {
+        background: #64748b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-heading">
+    <h1>My Requests</h1>
+    <p>Manage your learning and teaching connections.</p>
+</div>
+
+<div class="request-section">
+
+    <h2>Received Requests</h2>
+
+    {% if received_requests %}
+        {% for request in received_requests %}
+            <div class="request-card">
+
+                <h3>{{ request.sender.name }}</h3>
+
+                <p>
+                    <strong>Request:</strong>
+                    {{ request.message or "Wants to connect with you." }}
+                </p>
+
+                <span class="status">
+                    {{ request.status }}
+                </span>
+
+                {% if request.status == "pending" %}
+                    <form method="POST"
+                          action="{{ url_for('respond_request', request_id=request.id) }}"
+                          style="display:inline;">
+
+                        <input type="hidden" name="action" value="accept">
+                        <button type="submit" class="action-btn">
+                            Accept
+                        </button>
+                    </form>
+
+                    <form method="POST"
+                          action="{{ url_for('respond_request', request_id=request.id) }}"
+                          style="display:inline;">
+
+                        <input type="hidden" name="action" value="reject">
+                        <button type="submit" class="action-btn reject-btn">
+                            Reject
+                        </button>
+                    </form>
+                {% endif %}
+
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-message">
+            No received requests yet.
+        </div>
+    {% endif %}
+
+</div>
+
+<div class="request-section">
+
+    <h2>Sent Requests</h2>
+
+    {% if sent_requests %}
+        {% for request in sent_requests %}
+            <div class="request-card">
+
+                <h3>{{ request.receiver.name }}</h3>
+
+                <p>You sent a connection request to this person.</p>
+
+                <span class="status">
+                    {{ request.status }}
+                </span>
+
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-message">
+            You haven't sent any requests yet.
+        </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}
