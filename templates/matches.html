@@ -1,0 +1,159 @@
+
+{% extends "base.html" %}
+
+{% block title %}Find Learning Partners - DUODECODE{% endblock %}
+
+{% block head %}
+<style>
+    .page-heading {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .page-heading h1 {
+        color: #172554;
+        margin-bottom: 10px;
+    }
+
+    .page-heading p {
+        color: #64748b;
+    }
+
+    .search-box {
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+    }
+
+    .search-box label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+
+    .search-box select {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+    }
+
+    .search-btn {
+        margin-top: 15px;
+        padding: 12px 20px;
+        background: #1d4ed8;
+        color: white;
+        border: none;
+        border-radius: 7px;
+        cursor: pointer;
+    }
+
+    .partner-card {
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 18px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+    }
+
+    .partner-card h3 {
+        color: #1e40af;
+        margin-bottom: 12px;
+    }
+
+    .partner-card p {
+        color: #475569;
+        margin-bottom: 10px;
+        line-height: 1.5;
+    }
+
+    .request-btn {
+        display: inline-block;
+        margin-top: 10px;
+        padding: 10px 17px;
+        background: #172554;
+        color: white;
+        text-decoration: none;
+        border-radius: 7px;
+    }
+
+    .empty-message {
+        background: #eff6ff;
+        color: #1e3a8a;
+        padding: 25px;
+        border-radius: 10px;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-heading">
+    <h1>Find Your Learning Partner</h1>
+    <p>Exchange knowledge and help each other grow.</p>
+</div>
+
+<div class="search-box">
+    <form method="GET" action="{{ url_for('matches') }}">
+        <label for="topic">Choose a topic you want to learn</label>
+
+        <select name="topic" id="topic">
+            <option value="">All Topics</option>
+            <option value="PPS">PPS</option>
+            <option value="BEE">BEE</option>
+            <option value="Mathematics">Mathematics</option>
+            <option value="Physics">Physics</option>
+            <option value="C Programming">C Programming</option>
+            <option value="Python">Python</option>
+            <option value="Other">Other</option>
+        </select>
+
+        <button type="submit" class="search-btn">
+            Find Partners
+        </button>
+    </form>
+</div>
+
+<h2 style="color:#172554; margin-bottom:18px;">
+    Available Learning Partners
+</h2>
+
+{% if matches %}
+    {% for partner in matches %}
+        <div class="partner-card">
+            <h3>{{ partner.name }}</h3>
+
+            <p>
+                <strong>Can Teach:</strong>
+                {{ partner.known_topics }}
+            </p>
+
+            <p>
+                <strong>Wants to Learn:</strong>
+                {{ partner.learning_topics }}
+            </p>
+
+            <p>
+                <strong>Role:</strong>
+                {{ partner.role }}
+            </p>
+
+            <a
+                href="{{ url_for('send_request', receiver_id=partner.id) }}"
+                class="request-btn"
+            >
+                Connect
+            </a>
+        </div>
+    {% endfor %}
+{% else %}
+    <div class="empty-message">
+        <h3>No matching partners yet</h3>
+        <p>Complete your profile and check again when other learners join.</p>
+    </div>
+{% endif %}
+
+{% endblock %}
