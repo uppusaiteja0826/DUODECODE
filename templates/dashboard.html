@@ -1,0 +1,126 @@
+
+{% extends "base.html" %}
+
+{% block title %}Dashboard - DUODECODE{% endblock %}
+
+{% block head %}
+<style>
+    .welcome-section {
+        background: #172554;
+        color: white;
+        padding: 35px;
+        border-radius: 14px;
+        margin-bottom: 30px;
+    }
+
+    .welcome-section h1 {
+        margin-bottom: 12px;
+    }
+
+    .welcome-section p {
+        line-height: 1.6;
+        color: #dbeafe;
+    }
+
+    .dashboard-heading {
+        color: #172554;
+        margin-bottom: 18px;
+    }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 20px;
+    }
+
+    .dashboard-card {
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+    }
+
+    .dashboard-card h3 {
+        color: #1e40af;
+        margin-bottom: 12px;
+    }
+
+    .dashboard-card p {
+        color: #64748b;
+        line-height: 1.6;
+        margin-bottom: 18px;
+    }
+
+    .dashboard-card a {
+        display: inline-block;
+        background: #1d4ed8;
+        color: white;
+        padding: 10px 16px;
+        border-radius: 7px;
+        text-decoration: none;
+    }
+
+    .dashboard-card a:hover {
+        background: #1e40af;
+    }
+
+    .coming-soon {
+        margin-top: 30px;
+        padding: 25px;
+        background: #eff6ff;
+        border-radius: 12px;
+        color: #1e3a8a;
+        line-height: 1.6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<section class="welcome-section">
+    <h1>Welcome to DUODECODE!</h1>
+
+    <p>
+        Hello, {{ session.get('user_name', 'Student') }}!
+        Your learning journey starts here.
+    </p>
+
+    <p>
+        Learn from others, share your knowledge,
+        and grow together.
+    </p>
+</section>
+
+<h2 class="dashboard-heading">Your Learning Dashboard</h2>
+
+<div class="dashboard-grid">
+
+    <div class="dashboard-card">
+        <h3>My Profile</h3>
+        <p>View and manage your learning profile.</p>
+        <a href="{{ url_for('profile') }}">View Profile</a>
+    </div>
+
+    <div class="dashboard-card">
+        <h3>Find Learning Partners</h3>
+        <p>Connect with students who can help you learn.</p>
+        <a href="{{ url_for('matches') }}">Find Partners</a>
+    </div>
+
+    <div class="dashboard-card">
+        <h3>My Requests</h3>
+        <p>View your learning and teaching requests.</p>
+        <a href="{{ url_for('requests') }}">View Requests</a>
+    </div>
+
+</div>
+
+<div class="coming-soon">
+    <h3>Learn Together. Grow Together.</h3>
+    <p>
+        DUODECODE brings students and teachers together
+        to exchange knowledge and help each other succeed.
+    </p>
+</div>
+
+{% endblock %}
