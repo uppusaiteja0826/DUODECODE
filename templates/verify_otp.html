@@ -47,29 +47,20 @@
         cursor: pointer;
         font-weight: bold;
     }
-
-    .verify-btn:hover {
-        background: #1e40af;
-    }
-
-    .note {
-        margin-top: 18px;
-        font-size: 13px;
-    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="otp-container">
 
-    <h1>Verify Your Email</h1>
+    <h1>Verify Your OTP</h1>
 
     <p>
-        We have sent a 6-digit verification code to your email address.
-        Enter the code below to continue.
+        Enter the 6-digit code sent to your registered email address.
     </p>
 
-    <form method="POST" action="{{ url_for('verify_email') }}">
+    <form method="POST"
+    action="{% if session.get('pending_email') %}{{ url_for('verify_email') }}{% elif session.get('pending_login') %}{{ url_for('verify_login') }}{% else %}{{ url_for('verify_reset') }}{% endif %}">
 
         <input
             type="text"
@@ -90,7 +81,7 @@
 
     </form>
 
-    <p class="note">
+    <p style="margin-top:20px; font-size:13px;">
         Your OTP is valid for 5 minutes.
     </p>
 
