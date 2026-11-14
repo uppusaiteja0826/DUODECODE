@@ -677,11 +677,15 @@ def matches():
     )
 
 
+
 # --------------------------------------------------
 # SEND CONNECTION REQUEST
 # --------------------------------------------------
 
-@app.route("/send-request/<int:receiver_id>")
+@app.route(
+    "/send-request/<int:receiver_id>",
+    methods=["POST"]
+)
 @login_required
 def send_request(receiver_id):
 
@@ -729,108 +733,3 @@ def send_request(receiver_id):
 
     flash("Connection request sent!")
     return redirect(url_for("matches"))
-
-
-# --------------------------------------------------
-# VIEW CONNECTION REQUESTS
-# --------------------------------------------------
-
-@app.route("/requests")
-@login_required
-def requests():
-
-    user_id = session["user_id"]
-
-    received_requests = ConnectionRequest.query.filter_by(
-        receiver_id=user_id
-    ).order_by(
-        ConnectionRequest.created_at.desc()
-    ).all()
-
-    sent_requests = ConnectionRequest.query.filter_by(
-        sender_id=user_id
-    ).order_by(
-        ConnectionRequest.created_at.desc()
-    ).all()
-
-    return render_template(
-        "requests.html",
-        received_requests=received_requests,
-        sent_requests=sent_requests
-    )
-
-
-# --------------------------------------------------
-# ACCEPT OR REJECT CONNECTION REQUEST
-# --------------------------------------------------
-
-@app.route(
-    "/respond-request/<int:request_id>",
-    methods=["POST"]
-)
-@login_required
-def respond_request(request_id):
-
-    connection = db.session.get(
-        ConnectionRequest, request_id
-    )
-
-    if not connection:
-        flash("Connection request not found.")
-        return redirect(url_for("requests"))
-
-    # Only the receiver can accept or reject
-    if connection.receiver_id != session["user_id"]:
-        flash("You cannot respond to this request.")
-        return redirect(url_for("requests"))
-
-    if connection.status != "pending":
-        flash("This request has already been handled.")
-        return redirect(url_for("requests"))
-
-    action = request.form.get("action", "").strip().lower()
-
-    if action == "accept":
-        connection.status = "accepted"
-        flash("Connection request accepted!")
-
-    elif action == "reject":
-        connection.status = "rejected"
-        flash("Connection request rejected.")
-
-    else:
-        flash("Invalid request action.")
-        return redirect(url_for("requests"))
-
-    db.session.commit()
-
-    return redirect(url_for("requests"))
-
-
-# --------------------------------------------------
-# LOGOUT
-# --------------------------------------------------
-
-@app.route("/logout")
-def logout():
-
-    session.clear()
-
-    flash("You have logged out.")
-    return redirect(url_for("login"))
-
-
-# --------------------------------------------------
-# CREATE DATABASE TABLES
-# --------------------------------------------------
-
-with app.app_context():
-    db.create_all()
-
-
-# --------------------------------------------------
-# RUN APPLICATION
-# --------------------------------------------------
-
-if __name__ == "__main__":
-    app.run(debug=True)
