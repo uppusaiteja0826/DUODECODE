@@ -1,0 +1,247 @@
+
+{% extends "base.html" %}
+
+{% block title %}DUODECODE - Learn Together, Grow Together{% endblock %}
+
+{% block head %}
+<style>
+    .hero {
+        text-align: center;
+        padding: 75px 20px;
+        background: linear-gradient(135deg, #172554, #2563eb);
+        color: white;
+        border-radius: 20px;
+    }
+
+    .hero h1 {
+        font-size: 46px;
+        margin-bottom: 20px;
+    }
+
+    .hero p {
+        font-size: 18px;
+        line-height: 1.7;
+        max-width: 650px;
+        margin: auto;
+        color: #dbeafe;
+    }
+
+    .hero-buttons {
+        margin-top: 30px;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 14px 25px;
+        margin: 8px;
+        border-radius: 9px;
+        text-decoration: none;
+        font-weight: bold;
+    }
+
+    .btn-primary {
+        background: white;
+        color: #172554;
+    }
+
+    .btn-secondary {
+        border: 1px solid white;
+        color: white;
+    }
+
+    .section {
+        padding: 55px 10px;
+        text-align: center;
+    }
+
+    .section h2 {
+        font-size: 30px;
+        margin-bottom: 15px;
+    }
+
+    .section-intro {
+        color: #64748b;
+        margin-bottom: 30px;
+        line-height: 1.6;
+    }
+
+    .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+    }
+
+    .card {
+        background: white;
+        padding: 28px 20px;
+        border-radius: 14px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+        text-align: left;
+    }
+
+    .card h3 {
+        margin-bottom: 12px;
+        color: #172554;
+    }
+
+    .card p {
+        color: #64748b;
+        line-height: 1.7;
+    }
+
+    .card-icon {
+        font-size: 35px;
+        margin-bottom: 15px;
+    }
+
+    .highlight {
+        background: #eff6ff;
+        border-radius: 18px;
+        padding: 40px 20px;
+        text-align: center;
+    }
+
+    .highlight h2 {
+        color: #172554;
+        margin-bottom: 15px;
+    }
+
+    @media(max-width: 600px) {
+        .hero h1 {
+            font-size: 32px;
+        }
+
+        .hero {
+            padding: 55px 15px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<section class="hero">
+
+    <h1>Learn Together.<br>Grow Together.</h1>
+
+    <p>
+        DUODECODE connects students who want to learn
+        with students who can teach. Share your knowledge,
+        discover new subjects and grow together.
+    </p>
+
+    <div class="hero-buttons">
+        <a href="{{ url_for('register') }}"
+           class="btn btn-primary">
+            Get Started
+        </a>
+
+        <a href="{{ url_for('login') }}"
+           class="btn btn-secondary">
+            Login
+        </a>
+    </div>
+
+</section>
+
+
+<section class="section">
+
+    <h2>How DUODECODE Works</h2>
+
+    <p class="section-intro">
+        Learning becomes easier when students help each other.
+    </p>
+
+    <div class="cards">
+
+        <div class="card">
+            <div class="card-icon">📚</div>
+            <h3>Share What You Know</h3>
+            <p>
+                Select the subjects and topics
+                you are confident in teaching.
+            </p>
+        </div>
+
+        <div class="card">
+            <div class="card-icon">🎯</div>
+            <h3>Choose What You Need</h3>
+            <p>
+                Select the topics you find difficult
+                and want to understand better.
+            </p>
+        </div>
+
+        <div class="card">
+            <div class="card-icon">🤝</div>
+            <h3>Find Your Learning Partner</h3>
+            <p>
+                Connect with students who know
+                what you want to learn.
+            </p>
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="section">
+
+    <div class="highlight">
+
+        <h2>Know Something? Teach Someone!</h2>
+
+        <p class="section-intro">
+            Students who enjoy teaching can also
+            join DUODECODE as mentors and help
+            others understand difficult topics.
+        </p>
+
+        <a href="{{ url_for('register') }}"
+           class="btn"
+           style="background:#1d4ed8;color:white;">
+            Join DUODECODE
+        </a>
+
+    </div>
+
+</section>
+
+
+<section class="section">
+
+    <h2>Why DUODECODE?</h2>
+
+    <div class="cards">
+
+        <div class="card">
+            <h3>Peer Learning</h3>
+            <p>
+                Learn directly from fellow students.
+            </p>
+        </div>
+
+        <div class="card">
+            <h3>Knowledge Sharing</h3>
+            <p>
+                Teaching others also improves
+                your own understanding.
+            </p>
+        </div>
+
+        <div class="card">
+            <h3>Learn Together</h3>
+            <p>
+                Build connections and improve
+                your academic knowledge.
+            </p>
+        </div>
+
+    </div>
+
+</section>
+
+{% endblock %}
