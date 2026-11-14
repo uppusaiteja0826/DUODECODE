@@ -1,0 +1,126 @@
+
+{% extends "base.html" %}
+
+{% block title %}My Profile - DUODECODE{% endblock %}
+
+{% block head %}
+<style>
+    .profile-container {
+        max-width: 750px;
+        margin: auto;
+        background: white;
+        padding: 30px;
+        border-radius: 14px;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.07);
+    }
+
+    .profile-container h1 {
+        color: #172554;
+        margin-bottom: 10px;
+    }
+
+    .profile-container p {
+        color: #64748b;
+        margin-bottom: 22px;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 8px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+        font: inherit;
+    }
+
+    .form-group textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .save-btn {
+        background: #1d4ed8;
+        color: white;
+        border: none;
+        padding: 13px 22px;
+        border-radius: 7px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+
+    <h1>My Learning Profile</h1>
+    <p>Tell other students what you know and what you want to learn.</p>
+
+    <form method="POST" action="{{ url_for('profile') }}">
+
+        <div class="form-group">
+            <label for="name">Full Name</label>
+            <input
+                type="text"
+                id="name"
+                name="name"
+                value="{{ session.get('user_name', '') }}"
+                required
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="role">I want to participate as</label>
+            <select id="role" name="role" required>
+                <option value="">Choose your role</option>
+                <option value="student">Student</option>
+                <option value="teacher">Teacher / Mentor</option>
+                <option value="both">Both Student and Teacher</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="known_topics">Topics I Can Teach</label>
+            <textarea
+                id="known_topics"
+                name="known_topics"
+                placeholder="Example: C Programming, Mathematics, PPS"
+            ></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="learning_topics">Topics I Want to Learn</label>
+            <textarea
+                id="learning_topics"
+                name="learning_topics"
+                placeholder="Example: Basic Electronics, Physics, Python"
+            ></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="bio">About Me</label>
+            <textarea
+                id="bio"
+                name="bio"
+                placeholder="Write a little about yourself..."
+            ></textarea>
+        </div>
+
+        <button type="submit" class="save-btn">
+            Save Profile
+        </button>
+
+    </form>
+</div>
+{% endblock %}
