@@ -29,10 +29,14 @@ app.config["SECRET_KEY"] = os.getenv(
 
 database_url = os.getenv("DATABASE_URL", "sqlite:///duodecode.db")
 
-# Compatibility for some Render PostgreSQL URLs
+# Render PostgreSQL compatibility: explicitly use psycopg2
 if database_url.startswith("postgres://"):
     database_url = database_url.replace(
-        "postgres://", "postgresql://", 1
+        "postgres://", "postgresql+psycopg2://", 1
+    )
+elif database_url.startswith("postgresql://"):
+    database_url = database_url.replace(
+        "postgresql://", "postgresql+psycopg2://", 1
     )
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
@@ -130,6 +134,7 @@ class ConnectionRequest(db.Model):
 def login_required(route_function):
     @wraps(route_function)
     def wrapper(*args, **kwargs):
+
         if "user_id" not in session:
             flash("Please log in first.")
             return redirect(url_for("login"))
@@ -145,6 +150,7 @@ def login_required(route_function):
 
 def split_topics(topic_text):
     """Convert comma-separated topics into a list."""
+
     if not topic_text:
         return []
 
@@ -171,7 +177,7 @@ def hash_otp(code):
 
 def send_otp(email, purpose):
 
-    # Invalidate previous OTPs
+    # Invalidate previous unused OTPs
     OTPChallenge.query.filter_by(
         email=email,
         purpose=purpose,
@@ -308,6 +314,7 @@ def register():
         db.session.commit()
 
         if send_otp(email, "register"):
+
             session.clear()
             session["pending_email"] = email
 
@@ -378,6 +385,7 @@ def login():
             return redirect(url_for("login"))
 
         if not user.verified:
+
             session.clear()
             session["pending_email"] = email
 
@@ -429,7 +437,10 @@ def verify_login():
                 flash("Login successful!")
                 return redirect(url_for("dashboard"))
 
-        flash(message)
+            flash("Account not found or not verified.")
+
+        else:
+            flash(message)
 
     return render_template("verify_otp.html")
 
@@ -677,7 +688,6 @@ def matches():
     )
 
 
-
 # --------------------------------------------------
 # SEND CONNECTION REQUEST
 # --------------------------------------------------
@@ -733,3 +743,103 @@ def send_request(receiver_id):
 
     flash("Connection request sent!")
     return redirect(url_for("matches"))
+
+
+# --------------------------------------------------
+# VIEW CONNECTION REQUESTS
+# --------------------------------------------------
+
+@app.route("/requests")
+@login_required
+def requests():
+
+    current_user_id = session["user_id"]
+
+    incoming_requests = ConnectionRequest.query.filter_by(
+        receiver_id=current_user_id
+    ).order_by(ConnectionRequest.created_at.desc()).all()
+
+    outgoing_requests = ConnectionRequest.query.filter_by(
+        sender_id=current_user_id
+    ).order_by(ConnectionRequest.created_at.desc()).all()
+
+    return render_template(
+        "requests.html",
+        incoming_requests=incoming_requests,
+        outgoing_requests=outgoing_requests,
+        received_requests=incoming_requests,
+        sent_requests=outgoing_requests
+    )
+
+
+# --------------------------------------------------
+# ACCEPT OR REJECT CONNECTION REQUEST
+# --------------------------------------------------
+
+@app.route(
+    "/respond-request/<int:request_id>/<action>",
+    methods=["POST"]
+)
+@login_required
+def respond_request(request_id, action):
+
+    connection = db.session.get(
+        ConnectionRequest, request_id
+    )
+
+    if not connection:
+        flash("Connection request not found.")
+        return redirect(url_for("requests"))
+
+    if connection.receiver_id != session["user_id"]:
+        flash("You are not allowed to respond to this request.")
+        return redirect(url_for("requests"))
+
+    if connection.status != "pending":
+        flash("This request has already been handled.")
+        return redirect(url_for("requests"))
+
+    if action == "accept":
+        connection.status = "accepted"
+        flash("Connection request accepted!")
+
+    elif action == "reject":
+        connection.status = "rejected"
+        flash("Connection request rejected.")
+
+    else:
+        flash("Invalid action.")
+        return redirect(url_for("requests"))
+
+    db.session.commit()
+
+    return redirect(url_for("requests"))
+
+
+# --------------------------------------------------
+# LOGOUT
+# --------------------------------------------------
+
+@app.route("/logout", methods=["GET", "POST"])
+def logout():
+
+    session.clear()
+    flash("You have been logged out.")
+
+    return redirect(url_for("home"))
+
+
+# --------------------------------------------------
+# CREATE DATABASE TABLES
+# --------------------------------------------------
+
+with app.app_context():
+    db.create_all()
+
+
+# --------------------------------------------------
+# RUN APPLICATION LOCALLY
+# --------------------------------------------------
+
+if __name__ == "__main__":
+    app.run(debug=True)
