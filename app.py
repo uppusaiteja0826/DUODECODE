@@ -29,7 +29,7 @@ app.config["SECRET_KEY"] = os.getenv(
 
 database_url = os.getenv("DATABASE_URL", "sqlite:///duodecode.db")
 
-# Render PostgreSQL compatibility: explicitly use psycopg2
+# PostgreSQL driver fix for Render
 if database_url.startswith("postgres://"):
     database_url = database_url.replace(
         "postgres://", "postgresql+psycopg2://", 1
@@ -128,10 +128,11 @@ class ConnectionRequest(db.Model):
 
 
 # --------------------------------------------------
-# LOGIN REQUIRED DECORATOR
+# LOGIN REQUIRED
 # --------------------------------------------------
 
 def login_required(route_function):
+
     @wraps(route_function)
     def wrapper(*args, **kwargs):
 
@@ -149,7 +150,6 @@ def login_required(route_function):
 # --------------------------------------------------
 
 def split_topics(topic_text):
-    """Convert comma-separated topics into a list."""
 
     if not topic_text:
         return []
@@ -162,6 +162,7 @@ def split_topics(topic_text):
 
 
 def hash_otp(code):
+
     secret = app.config["SECRET_KEY"]
 
     return hmac.new(
@@ -177,7 +178,6 @@ def hash_otp(code):
 
 def send_otp(email, purpose):
 
-    # Invalidate previous unused OTPs
     OTPChallenge.query.filter_by(
         email=email,
         purpose=purpose,
@@ -197,6 +197,7 @@ def send_otp(email, purpose):
     db.session.commit()
 
     try:
+
         message = Message(
             subject="DUODECODE - Verification OTP",
             recipients=[email],
@@ -219,6 +220,7 @@ DUODECODE Team
         return True
 
     except Exception as error:
+
         app.logger.error("Email delivery failed: %s", error)
         return False
 
@@ -235,21 +237,27 @@ def verify_otp(email, purpose, code):
         return False, "No active OTP found."
 
     if datetime.utcnow() > challenge.expires_at:
+
         challenge.used = True
         db.session.commit()
+
         return False, "OTP expired. Request a new one."
 
     if challenge.attempts >= 5:
+
         challenge.used = True
         db.session.commit()
+
         return False, "Too many attempts. Request a new OTP."
 
     if not hmac.compare_digest(
         challenge.code_hash,
         hash_otp(code)
     ):
+
         challenge.attempts += 1
         db.session.commit()
+
         return False, "Incorrect OTP."
 
     challenge.used = True
@@ -259,7 +267,7 @@ def verify_otp(email, purpose, code):
 
 
 # --------------------------------------------------
-# HOME PAGE
+# HOME
 # --------------------------------------------------
 
 @app.route("/")
@@ -268,7 +276,7 @@ def home():
 
 
 # --------------------------------------------------
-# USER REGISTRATION
+# REGISTER
 # --------------------------------------------------
 
 @app.route("/register", methods=["GET", "POST"])
@@ -300,14 +308,17 @@ def register():
             return redirect(url_for("register"))
 
         if not user:
+
             user = User(
                 name=name,
                 email=email,
                 password=generate_password_hash(password)
             )
+
             db.session.add(user)
 
         else:
+
             user.name = name
             user.password = generate_password_hash(password)
 
@@ -328,7 +339,7 @@ def register():
 
 
 # --------------------------------------------------
-# EMAIL VERIFICATION
+# VERIFY EMAIL
 # --------------------------------------------------
 
 @app.route("/verify-email", methods=["GET", "POST"])
@@ -381,6 +392,7 @@ def login():
         if not user or not check_password_hash(
             user.password, password
         ):
+
             flash("Incorrect email or password.")
             return redirect(url_for("login"))
 
@@ -406,7 +418,7 @@ def login():
 
 
 # --------------------------------------------------
-# LOGIN OTP VERIFICATION
+# VERIFY LOGIN OTP
 # --------------------------------------------------
 
 @app.route("/verify-login", methods=["GET", "POST"])
@@ -479,7 +491,7 @@ def forgot_password():
 
 
 # --------------------------------------------------
-# RESET OTP VERIFICATION
+# VERIFY RESET OTP
 # --------------------------------------------------
 
 @app.route("/verify-reset", methods=["GET", "POST"])
@@ -498,6 +510,7 @@ def verify_reset():
         )
 
         if success:
+
             session["reset_verified"] = True
             return redirect(url_for("reset_password"))
 
@@ -534,6 +547,7 @@ def reset_password():
         ).first()
 
         if user:
+
             user.password = generate_password_hash(password)
             db.session.commit()
 
@@ -560,7 +574,7 @@ def dashboard():
 
 
 # --------------------------------------------------
-# STUDENT PROFILE
+# PROFILE
 # --------------------------------------------------
 
 @app.route("/profile", methods=["GET", "POST"])
@@ -570,6 +584,7 @@ def profile():
     user = db.session.get(User, session["user_id"])
 
     if not user:
+
         session.clear()
         return redirect(url_for("login"))
 
@@ -581,12 +596,15 @@ def profile():
 
         name = request.form.get("name", "").strip()
         role = request.form.get("role", "student").strip()
+
         known_topics = request.form.get(
             "known_topics", ""
         ).strip()
+
         learning_topics = request.form.get(
             "learning_topics", ""
         ).strip()
+
         bio = request.form.get("bio", "").strip()
 
         if not name:
@@ -632,7 +650,7 @@ def profile():
 
 
 # --------------------------------------------------
-# FIND STUDENTS / MATCHING
+# FIND LEARNING PARTNERS
 # --------------------------------------------------
 
 @app.route("/matches")
@@ -642,6 +660,7 @@ def matches():
     current_user = db.session.get(User, session["user_id"])
 
     if not current_user:
+
         session.clear()
         return redirect(url_for("login"))
 
@@ -773,7 +792,7 @@ def requests():
 
 
 # --------------------------------------------------
-# ACCEPT OR REJECT CONNECTION REQUEST
+# ACCEPT OR REJECT REQUEST
 # --------------------------------------------------
 
 @app.route(
@@ -800,14 +819,17 @@ def respond_request(request_id, action):
         return redirect(url_for("requests"))
 
     if action == "accept":
+
         connection.status = "accepted"
         flash("Connection request accepted!")
 
     elif action == "reject":
+
         connection.status = "rejected"
         flash("Connection request rejected.")
 
     else:
+
         flash("Invalid action.")
         return redirect(url_for("requests"))
 
@@ -824,6 +846,7 @@ def respond_request(request_id, action):
 def logout():
 
     session.clear()
+
     flash("You have been logged out.")
 
     return redirect(url_for("home"))
@@ -838,7 +861,7 @@ with app.app_context():
 
 
 # --------------------------------------------------
-# RUN APPLICATION LOCALLY
+# RUN LOCALLY
 # --------------------------------------------------
 
 if __name__ == "__main__":
