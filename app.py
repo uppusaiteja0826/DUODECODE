@@ -733,3 +733,121 @@ def send_request(receiver_id):
 
     flash("Connection request sent!")
     return redirect(url_for("matches"))
+
+
+# --------------------------------------------------
+# VIEW CONNECTION REQUESTS
+# --------------------------------------------------
+
+@app.route("/requests")
+@login_required
+def requests():
+    current_user_id = session["user_id"]
+
+    received_requests = ConnectionRequest.query.filter_by(
+        receiver_id=current_user_id,
+        status="pending"
+    ).order_by(ConnectionRequest.created_at.desc()).all()
+
+    sent_requests = ConnectionRequest.query.filter_by(
+        sender_id=current_user_id
+    ).order_by(ConnectionRequest.created_at.desc()).all()
+
+    return render_template(
+        "requests.html",
+        received_requests=received_requests,
+        sent_requests=sent_requests
+    )
+
+
+# --------------------------------------------------
+# ACCEPT OR REJECT A CONNECTION REQUEST
+# --------------------------------------------------
+
+@app.route(
+    "/respond-request/<int:request_id>",
+    methods=["POST"]
+)
+@login_required
+def respond_request(request_id):
+    connection = db.session.get(ConnectionRequest, request_id)
+
+    if not connection:
+        flash("Connection request not found.")
+        return redirect(url_for("requests"))
+
+    # Only the person who received the request can respond.
+    if connection.receiver_id != session["user_id"]:
+        flash("You are not allowed to respond to this request.")
+        return redirect(url_for("requests"))
+
+    if connection.status != "pending":
+        flash("This request has already been handled.")
+        return redirect(url_for("requests"))
+
+    action = request.form.get("action", "").strip().lower()
+
+    if action == "accept":
+        connection.status = "accepted"
+        flash("Connection request accepted!")
+
+    elif action == "reject":
+        connection.status = "rejected"
+        flash("Connection request rejected.")
+
+    else:
+        flash("Invalid request action.")
+        return redirect(url_for("requests"))
+
+    db.session.commit()
+    return redirect(url_for("requests"))
+
+
+# --------------------------------------------------
+# LOGOUT
+# --------------------------------------------------
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("You have been logged out.")
+    return redirect(url_for("home"))
+
+
+# --------------------------------------------------
+# HEALTH CHECK
+# --------------------------------------------------
+
+@app.route("/health")
+def health():
+    from flask import jsonify
+    return jsonify({
+        "status": "ok",
+        "application": "DUODECODE"
+    }), 200
+
+
+# --------------------------------------------------
+# DATABASE INITIALIZATION
+# --------------------------------------------------
+# Creates database tables when the application starts.
+# For a larger production application, use database migrations.
+
+try:
+    with app.app_context():
+        db.create_all()
+        app.logger.info("Database tables are ready.")
+except Exception as error:
+    app.logger.exception("Database initialization failed: %s", error)
+
+
+# --------------------------------------------------
+# LOCAL DEVELOPMENT
+# --------------------------------------------------
+
+if __name__ == "__main__":
+    app.run(
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 5000)),
+        debug=False
+    )
