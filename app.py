@@ -320,7 +320,7 @@ def verify_email():
 
         flash("Invalid or expired OTP.", "danger")
 
-    return render_template("verify_email.html")
+    return render_template("verify_otp.html")
 
 
 # ==================================================
