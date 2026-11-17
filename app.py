@@ -272,9 +272,14 @@ def register():
             create_otp(email, "register")
 
         except Exception:
-            app.logger.exception("Registration OTP sending failed")
-            db.session.delete(user)
-            db.session.commit()
+    app.logger.exception("Registration OTP sending failed")
+    db.session.rollback()
+
+    db.session.delete(user)
+    db.session.commit()
+
+    flash("Unable to send verification email. Try again.", "danger")
+    return redirect(url_for("register"))
 
             flash("Unable to send verification email. Try again.", "danger")
             return redirect(url_for("register"))
@@ -776,6 +781,16 @@ with app.app_context():
         raise RuntimeError("DATABASE_URL is not configured.")
 
     db.create_all()
+        # Fix OTP hash column size in existing PostgreSQL database
+    with db.engine.begin() as connection:
+        connection.execute(
+            db.text(
+                "ALTER TABLE otp_challenge "
+                "ALTER COLUMN code_hash TYPE VARCHAR(255)"
+            )
+        )
+
+    app.logger.info("OTP code_hash column updated to VARCHAR(255).")
 
     # Add the missing created_at column to an old user table.
     inspector = inspect(db.engine)
