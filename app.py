@@ -22,7 +22,9 @@ app = Flask(__name__)
 # 1. CONFIGURATION
 # ==================================================
 
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "change-this-secret-key")
+app.config["SECRET_KEY"] = os.getenv(
+    "SECRET_KEY", "change-this-secret-key"
+)
 
 database_url = os.getenv("DATABASE_URL", "")
 
@@ -36,8 +38,10 @@ if database_url.startswith("postgresql://"):
         "postgresql://", "postgresql+psycopg2://", 1
     )
 
-app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+if not database_url:
+    raise RuntimeError("DATABASE_URL is not configured.")
 
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
@@ -45,14 +49,14 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300
 }
 
-# Email configuration
+# Gmail configuration
 
 app.config["MAIL_SERVER"] = "smtp.gmail.com"
 app.config["MAIL_PORT"] = 587
 app.config["MAIL_USE_TLS"] = True
 app.config["MAIL_USERNAME"] = os.getenv("MAIL_USERNAME")
 app.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD")
-app.config["MAIL_DEFAULT_SENDER"] = os.getenv("MAIL_USERNAME")
+app.config["MAIL_DEFAULT_SENDER"] = os.getenv("MAIL_DEFAULT_SENDER") or os.getenv("MAIL_USERNAME")
 
 db = SQLAlchemy(app)
 mail = Mail(app)
@@ -180,8 +184,9 @@ def create_otp(email, purpose):
         subject="DUODECODE Verification Code",
         recipients=[email],
         body=(
-            f"Your DUODECODE verification code is {code}.\n"
-            "This code expires in 5 minutes."
+            f"Your DUODECODE verification code is {code}.\n\n"
+            "This code expires in 5 minutes.\n"
+            "If you did not request this code, ignore this email."
         )
     )
 
@@ -254,6 +259,21 @@ def register():
         existing = User.query.filter_by(email=email).first()
 
         if existing:
+
+            if not existing.verified:
+                session["pending_email"] = email
+
+                try:
+                    create_otp(email, "register")
+                    flash("A new verification OTP has been sent.", "success")
+                    return redirect(url_for("verify_email"))
+
+                except Exception:
+                    db.session.rollback()
+                    app.logger.exception("Registration OTP resend failed")
+                    flash("Unable to send OTP. Please try again.", "danger")
+                    return redirect(url_for("register"))
+
             flash("Email already registered.", "danger")
             return redirect(url_for("register"))
 
@@ -272,18 +292,17 @@ def register():
             create_otp(email, "register")
 
         except Exception:
-    app.logger.exception("Registration OTP sending failed")
-    db.session.rollback()
+            db.session.rollback()
+            app.logger.exception("Registration OTP sending failed")
 
-    db.session.delete(user)
-    db.session.commit()
+            flash(
+                "Account created, but OTP could not be sent. "
+                "Please try logging in to request another OTP.",
+                "warning"
+            )
+            return redirect(url_for("login"))
 
-    flash("Unable to send verification email. Try again.", "danger")
-    return redirect(url_for("register"))
-
-            flash("Unable to send verification email. Try again.", "danger")
-            return redirect(url_for("register"))
-
+        flash("Verification OTP sent to your email.", "success")
         return redirect(url_for("verify_email"))
 
     return render_template("register.html")
@@ -320,7 +339,6 @@ def verify_email():
             session.pop("pending_email", None)
 
             flash("Account verified successfully. Please login.", "success")
-
             return redirect(url_for("login"))
 
         flash("Invalid or expired OTP.", "danger")
@@ -345,8 +363,19 @@ def login():
         if user and check_password_hash(user.password, password):
 
             if not user.verified:
-                flash("Please verify your email first.", "warning")
+
                 session["pending_email"] = email
+
+                try:
+                    create_otp(email, "register")
+                    flash("A new verification OTP has been sent.", "success")
+
+                except Exception:
+                    db.session.rollback()
+                    app.logger.exception("Unverified account OTP failed")
+                    flash("Unable to send OTP. Please try again.", "danger")
+                    return redirect(url_for("login"))
+
                 return redirect(url_for("verify_email"))
 
             session["login_email"] = email
@@ -355,6 +384,7 @@ def login():
                 create_otp(email, "login")
 
             except Exception:
+                db.session.rollback()
                 app.logger.exception("Login OTP sending failed")
                 flash("Unable to send login OTP.", "danger")
                 return redirect(url_for("login"))
@@ -419,6 +449,7 @@ def forgot_password():
                 return redirect(url_for("verify_reset"))
 
             except Exception:
+                db.session.rollback()
                 app.logger.exception("Password reset OTP failed")
                 flash("Unable to send OTP.", "danger")
 
@@ -450,7 +481,6 @@ def verify_reset():
         if verify_otp(email, "reset", code):
 
             session["reset_verified"] = True
-
             return redirect(url_for("reset_password"))
 
         flash("Invalid or expired OTP.", "danger")
@@ -482,7 +512,6 @@ def reset_password():
         else:
 
             email = session.get("reset_email")
-
             user = User.query.filter_by(email=email).first()
 
             if user:
@@ -493,7 +522,6 @@ def reset_password():
             session.pop("reset_verified", None)
 
             flash("Password updated successfully.", "success")
-
             return redirect(url_for("login"))
 
     return render_template("reset_password.html")
@@ -538,9 +566,7 @@ def profile():
     profile = user.profile
 
     if not profile:
-
         profile = Profile(user_id=user.id)
-
         db.session.add(profile)
         db.session.commit()
 
@@ -557,7 +583,6 @@ def profile():
         db.session.commit()
 
         flash("Profile updated successfully.", "success")
-
         return redirect(url_for("profile"))
 
     return render_template(
@@ -576,7 +601,6 @@ def profile():
 def matches():
 
     current_id = session["user_id"]
-
     current_user = db.session.get(User, current_id)
 
     if not current_user or not current_user.profile:
@@ -592,15 +616,15 @@ def matches():
 
     learning = (my_profile.learning_topics or "").lower()
 
+    topics = [
+        topic.strip()
+        for topic in learning.split(",")
+        if topic.strip()
+    ]
+
     for profile in other_profiles:
 
         known = (profile.known_topics or "").lower()
-
-        topics = [
-            topic.strip()
-            for topic in learning.split(",")
-            if topic.strip()
-        ]
 
         if any(topic in known for topic in topics):
             matched_users.append(profile.user)
@@ -645,11 +669,9 @@ def send_request(receiver_id):
     ).first()
 
     if existing:
-
         flash("A connection request already exists.", "info")
 
     else:
-
         connection = ConnectionRequest(
             sender_id=sender_id,
             receiver_id=receiver_id
@@ -709,21 +731,16 @@ def respond_request(request_id):
     action = request.form.get("action")
 
     if connection.status != "pending":
-
         flash("This request has already been handled.", "info")
 
     elif action == "accept":
-
         connection.status = "accepted"
         db.session.commit()
-
         flash("Connection accepted.", "success")
 
     elif action == "reject":
-
         connection.status = "rejected"
         db.session.commit()
-
         flash("Connection rejected.", "info")
 
     return redirect(url_for("requests"))
@@ -751,7 +768,6 @@ def logout():
 def health():
 
     try:
-
         db.session.execute(db.text("SELECT 1"))
 
         return jsonify({
@@ -760,9 +776,7 @@ def health():
         }), 200
 
     except Exception:
-
         db.session.rollback()
-
         app.logger.exception("Database health check failed")
 
         return jsonify({
@@ -777,11 +791,9 @@ def health():
 
 with app.app_context():
 
-    if not database_url:
-        raise RuntimeError("DATABASE_URL is not configured.")
-
     db.create_all()
-        # Fix OTP hash column size in existing PostgreSQL database
+
+    # Fix old PostgreSQL OTP hash column (64 to 255)
     with db.engine.begin() as connection:
         connection.execute(
             db.text(
@@ -790,9 +802,11 @@ with app.app_context():
             )
         )
 
-    app.logger.info("OTP code_hash column updated to VARCHAR(255).")
+    app.logger.info(
+        "OTP code_hash column updated to VARCHAR(255)."
+    )
 
-    # Add the missing created_at column to an old user table.
+    # Add created_at if missing in an older user table
     inspector = inspect(db.engine)
 
     if "user" in inspector.get_table_names():
@@ -805,7 +819,6 @@ with app.app_context():
         if "created_at" not in columns:
 
             with db.engine.begin() as connection:
-
                 connection.execute(
                     db.text(
                         'ALTER TABLE "user" '
