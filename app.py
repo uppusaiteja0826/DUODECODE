@@ -1,10 +1,10 @@
 
 import os
 import secrets
-import hashlib
 from datetime import datetime, timedelta
 from functools import wraps
 
+from dotenv import load_dotenv
 from flask import (
     Flask, render_template, request, redirect,
     url_for, session, flash, jsonify
@@ -12,16 +12,15 @@ from flask import (
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
-from dotenv import load_dotenv
-from sqlalchemy import or_
+from sqlalchemy import or_, inspect
 
 load_dotenv()
 
 app = Flask(__name__)
 
-# --------------------------------------------------
-# CONFIGURATION
-# --------------------------------------------------
+# ==================================================
+# 1. CONFIGURATION
+# ==================================================
 
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "change-this-secret-key")
 
@@ -38,6 +37,7 @@ if database_url.startswith("postgresql://"):
     )
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
@@ -46,6 +46,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 
 # Email configuration
+
 app.config["MAIL_SERVER"] = "smtp.gmail.com"
 app.config["MAIL_PORT"] = 587
 app.config["MAIL_USE_TLS"] = True
@@ -57,9 +58,9 @@ db = SQLAlchemy(app)
 mail = Mail(app)
 
 
-# --------------------------------------------------
-# DATABASE MODELS
-# --------------------------------------------------
+# ==================================================
+# 2. DATABASE MODELS
+# ==================================================
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -82,10 +83,14 @@ class OTPChallenge(db.Model):
 
 class Profile(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+
     user_id = db.Column(
-        db.Integer, db.ForeignKey("user.id"),
-        unique=True, nullable=False
+        db.Integer,
+        db.ForeignKey("user.id"),
+        unique=True,
+        nullable=False
     )
+
     role = db.Column(db.String(30), default="student")
     college = db.Column(db.String(150))
     course = db.Column(db.String(100))
@@ -95,50 +100,68 @@ class Profile(db.Model):
     learning_topics = db.Column(db.Text)
 
     user = db.relationship(
-        "User", backref=db.backref("profile", uselist=False)
+        "User",
+        backref=db.backref("profile", uselist=False)
     )
 
 
 class ConnectionRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+
     sender_id = db.Column(
-        db.Integer, db.ForeignKey("user.id"), nullable=False
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False
     )
+
     receiver_id = db.Column(
-        db.Integer, db.ForeignKey("user.id"), nullable=False
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False
     )
+
     status = db.Column(db.String(30), default="pending")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     sender = db.relationship(
-        "User", foreign_keys=[sender_id]
+        "User",
+        foreign_keys=[sender_id]
     )
+
     receiver = db.relationship(
-        "User", foreign_keys=[receiver_id]
+        "User",
+        foreign_keys=[receiver_id]
     )
 
 
-# --------------------------------------------------
-# LOGIN PROTECTION
-# --------------------------------------------------
+# ==================================================
+# 3. LOGIN PROTECTION
+# ==================================================
 
 def login_required(function):
+
     @wraps(function)
     def wrapper(*args, **kwargs):
+
         if "user_id" not in session:
             flash("Please login first.", "warning")
             return redirect(url_for("login"))
+
         return function(*args, **kwargs)
+
     return wrapper
 
 
-# --------------------------------------------------
-# OTP FUNCTIONS
-# --------------------------------------------------
+# ==================================================
+# 4. OTP FUNCTIONS
+# ==================================================
 
 def create_otp(email, purpose):
+
     OTPChallenge.query.filter_by(
-        email=email, purpose=purpose, used=False
+        email=email,
+        purpose=purpose,
+        used=False
     ).update({"used": True})
 
     code = str(secrets.randbelow(900000) + 100000)
@@ -156,14 +179,17 @@ def create_otp(email, purpose):
     message = Message(
         subject="DUODECODE Verification Code",
         recipients=[email],
-        body=f"Your DUODECODE verification code is {code}. "
-             "It expires in 5 minutes."
+        body=(
+            f"Your DUODECODE verification code is {code}.\n"
+            "This code expires in 5 minutes."
+        )
     )
 
     mail.send(message)
 
 
 def verify_otp(email, purpose, code):
+
     challenge = OTPChallenge.query.filter_by(
         email=email,
         purpose=purpose,
@@ -190,18 +216,18 @@ def verify_otp(email, purpose, code):
     return False
 
 
-# --------------------------------------------------
-# HOME
-# --------------------------------------------------
+# ==================================================
+# 5. HOME
+# ==================================================
 
 @app.route("/")
 def home():
     return render_template("index.html")
 
 
-# --------------------------------------------------
-# REGISTER
-# --------------------------------------------------
+# ==================================================
+# 6. REGISTER
+# ==================================================
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -244,9 +270,12 @@ def register():
 
         try:
             create_otp(email, "register")
+
         except Exception:
+            app.logger.exception("Registration OTP sending failed")
             db.session.delete(user)
             db.session.commit()
+
             flash("Unable to send verification email. Try again.", "danger")
             return redirect(url_for("register"))
 
@@ -255,9 +284,9 @@ def register():
     return render_template("register.html")
 
 
-# --------------------------------------------------
-# VERIFY REGISTRATION EMAIL
-# --------------------------------------------------
+# ==================================================
+# 7. VERIFY REGISTRATION EMAIL
+# ==================================================
 
 @app.route("/verify-email", methods=["GET", "POST"])
 def verify_email():
@@ -286,6 +315,7 @@ def verify_email():
             session.pop("pending_email", None)
 
             flash("Account verified successfully. Please login.", "success")
+
             return redirect(url_for("login"))
 
         flash("Invalid or expired OTP.", "danger")
@@ -293,9 +323,9 @@ def verify_email():
     return render_template("verify_email.html")
 
 
-# --------------------------------------------------
-# LOGIN
-# --------------------------------------------------
+# ==================================================
+# 8. LOGIN
+# ==================================================
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -318,7 +348,9 @@ def login():
 
             try:
                 create_otp(email, "login")
+
             except Exception:
+                app.logger.exception("Login OTP sending failed")
                 flash("Unable to send login OTP.", "danger")
                 return redirect(url_for("login"))
 
@@ -329,9 +361,9 @@ def login():
     return render_template("login.html")
 
 
-# --------------------------------------------------
-# VERIFY LOGIN OTP
-# --------------------------------------------------
+# ==================================================
+# 9. VERIFY LOGIN OTP
+# ==================================================
 
 @app.route("/verify-login", methods=["GET", "POST"])
 def verify_login():
@@ -360,9 +392,9 @@ def verify_login():
     return render_template("verify_login.html")
 
 
-# --------------------------------------------------
-# FORGOT PASSWORD
-# --------------------------------------------------
+# ==================================================
+# 10. FORGOT PASSWORD
+# ==================================================
 
 @app.route("/forgot-password", methods=["GET", "POST"])
 def forgot_password():
@@ -370,25 +402,33 @@ def forgot_password():
     if request.method == "POST":
 
         email = request.form.get("email", "").strip().lower()
+
         user = User.query.filter_by(email=email).first()
 
         if user:
+
             try:
                 create_otp(email, "reset")
                 session["reset_email"] = email
+
                 return redirect(url_for("verify_reset"))
+
             except Exception:
+                app.logger.exception("Password reset OTP failed")
                 flash("Unable to send OTP.", "danger")
 
         else:
-            flash("If the account exists, a reset code can be sent.", "info")
+            flash(
+                "If the account exists, a reset code can be sent.",
+                "info"
+            )
 
     return render_template("forgot_password.html")
 
 
-# --------------------------------------------------
-# VERIFY RESET OTP
-# --------------------------------------------------
+# ==================================================
+# 11. VERIFY RESET OTP
+# ==================================================
 
 @app.route("/verify-reset", methods=["GET", "POST"])
 def verify_reset():
@@ -403,7 +443,9 @@ def verify_reset():
         code = request.form.get("otp", "").strip()
 
         if verify_otp(email, "reset", code):
+
             session["reset_verified"] = True
+
             return redirect(url_for("reset_password"))
 
         flash("Invalid or expired OTP.", "danger")
@@ -411,9 +453,9 @@ def verify_reset():
     return render_template("verify_reset.html")
 
 
-# --------------------------------------------------
-# RESET PASSWORD
-# --------------------------------------------------
+# ==================================================
+# 12. RESET PASSWORD
+# ==================================================
 
 @app.route("/reset-password", methods=["GET", "POST"])
 def reset_password():
@@ -435,6 +477,7 @@ def reset_password():
         else:
 
             email = session.get("reset_email")
+
             user = User.query.filter_by(email=email).first()
 
             if user:
@@ -445,14 +488,15 @@ def reset_password():
             session.pop("reset_verified", None)
 
             flash("Password updated successfully.", "success")
+
             return redirect(url_for("login"))
 
     return render_template("reset_password.html")
 
 
-# --------------------------------------------------
-# DASHBOARD
-# --------------------------------------------------
+# ==================================================
+# 13. DASHBOARD
+# ==================================================
 
 @app.route("/dashboard")
 @login_required
@@ -473,9 +517,9 @@ def dashboard():
     )
 
 
-# --------------------------------------------------
-# PROFILE
-# --------------------------------------------------
+# ==================================================
+# 14. PROFILE
+# ==================================================
 
 @app.route("/profile", methods=["GET", "POST"])
 @login_required
@@ -489,7 +533,9 @@ def profile():
     profile = user.profile
 
     if not profile:
+
         profile = Profile(user_id=user.id)
+
         db.session.add(profile)
         db.session.commit()
 
@@ -506,6 +552,7 @@ def profile():
         db.session.commit()
 
         flash("Profile updated successfully.", "success")
+
         return redirect(url_for("profile"))
 
     return render_template(
@@ -515,15 +562,16 @@ def profile():
     )
 
 
-# --------------------------------------------------
-# MATCHING STUDENTS
-# --------------------------------------------------
+# ==================================================
+# 15. MATCHING STUDENTS
+# ==================================================
 
 @app.route("/matches")
 @login_required
 def matches():
 
     current_id = session["user_id"]
+
     current_user = db.session.get(User, current_id)
 
     if not current_user or not current_user.profile:
@@ -543,10 +591,13 @@ def matches():
 
         known = (profile.known_topics or "").lower()
 
-        if learning and any(
-            topic.strip() and topic.strip() in known
+        topics = [
+            topic.strip()
             for topic in learning.split(",")
-        ):
+            if topic.strip()
+        ]
+
+        if any(topic in known for topic in topics):
             matched_users.append(profile.user)
 
     return render_template(
@@ -555,9 +606,9 @@ def matches():
     )
 
 
-# --------------------------------------------------
-# SEND CONNECTION REQUEST
-# --------------------------------------------------
+# ==================================================
+# 16. SEND CONNECTION REQUEST
+# ==================================================
 
 @app.route("/send-request/<int:receiver_id>", methods=["POST"])
 @login_required
@@ -589,8 +640,11 @@ def send_request(receiver_id):
     ).first()
 
     if existing:
+
         flash("A connection request already exists.", "info")
+
     else:
+
         connection = ConnectionRequest(
             sender_id=sender_id,
             receiver_id=receiver_id
@@ -604,9 +658,9 @@ def send_request(receiver_id):
     return redirect(url_for("matches"))
 
 
-# --------------------------------------------------
-# VIEW CONNECTION REQUESTS
-# --------------------------------------------------
+# ==================================================
+# 17. VIEW CONNECTION REQUESTS
+# ==================================================
 
 @app.route("/requests")
 @login_required
@@ -629,9 +683,9 @@ def requests():
     )
 
 
-# --------------------------------------------------
-# ACCEPT OR REJECT REQUEST
-# --------------------------------------------------
+# ==================================================
+# 18. ACCEPT OR REJECT REQUEST
+# ==================================================
 
 @app.route("/respond-request/<int:request_id>", methods=["POST"])
 @login_required
@@ -650,24 +704,29 @@ def respond_request(request_id):
     action = request.form.get("action")
 
     if connection.status != "pending":
+
         flash("This request has already been handled.", "info")
 
     elif action == "accept":
+
         connection.status = "accepted"
         db.session.commit()
+
         flash("Connection accepted.", "success")
 
     elif action == "reject":
+
         connection.status = "rejected"
         db.session.commit()
+
         flash("Connection rejected.", "info")
 
     return redirect(url_for("requests"))
 
 
-# --------------------------------------------------
-# LOGOUT
-# --------------------------------------------------
+# ==================================================
+# 19. LOGOUT
+# ==================================================
 
 @app.route("/logout")
 def logout():
@@ -679,14 +738,15 @@ def logout():
     return redirect(url_for("login"))
 
 
-# --------------------------------------------------
-# HEALTH CHECK
-# --------------------------------------------------
+# ==================================================
+# 20. HEALTH CHECK
+# ==================================================
 
 @app.route("/health")
 def health():
 
     try:
+
         db.session.execute(db.text("SELECT 1"))
 
         return jsonify({
@@ -695,7 +755,10 @@ def health():
         }), 200
 
     except Exception:
+
         db.session.rollback()
+
+        app.logger.exception("Database health check failed")
 
         return jsonify({
             "status": "unhealthy",
@@ -703,19 +766,49 @@ def health():
         }), 500
 
 
-# --------------------------------------------------
-# DATABASE INITIALIZATION
-# --------------------------------------------------
+# ==================================================
+# 21. DATABASE INITIALIZATION AND MIGRATION
+# ==================================================
 
 with app.app_context():
+
+    if not database_url:
+        raise RuntimeError("DATABASE_URL is not configured.")
+
     db.create_all()
 
+    # Add the missing created_at column to an old user table.
+    inspector = inspect(db.engine)
 
-# --------------------------------------------------
-# APPLICATION START
-# --------------------------------------------------
+    if "user" in inspector.get_table_names():
+
+        columns = [
+            column["name"]
+            for column in inspector.get_columns("user")
+        ]
+
+        if "created_at" not in columns:
+
+            with db.engine.begin() as connection:
+
+                connection.execute(
+                    db.text(
+                        'ALTER TABLE "user" '
+                        'ADD COLUMN created_at TIMESTAMP'
+                    )
+                )
+
+            app.logger.info(
+                "Added missing user.created_at column."
+            )
+
+
+# ==================================================
+# 22. APPLICATION START
+# ==================================================
 
 if __name__ == "__main__":
+
     app.run(
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 5000)),
