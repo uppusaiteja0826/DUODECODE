@@ -10,7 +10,7 @@ from flask import (
     url_for, session, flash, jsonify
 )
 from flask_sqlalchemy import SQLAlchemy
-from flask_mail import Mail, Message
+import resend
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_, inspect
 
@@ -49,17 +49,10 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300
 }
 
-# Gmail configuration
-
-app.config["MAIL_SERVER"] = "smtp.gmail.com"
-app.config["MAIL_PORT"] = 587
-app.config["MAIL_USE_TLS"] = True
-app.config["MAIL_USERNAME"] = os.getenv("MAIL_USERNAME")
-app.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD")
-app.config["MAIL_DEFAULT_SENDER"] = os.getenv("MAIL_DEFAULT_SENDER") or os.getenv("MAIL_USERNAME")
+app.config["RESEND_API_KEY"] = os.getenv("RESEND_API_KEY")
+app.config["EMAIL_FROM"] = os.getenv("EMAIL_FROM")
 
 db = SQLAlchemy(app)
-mail = Mail(app)
 
 
 # ==================================================
@@ -162,6 +155,14 @@ def login_required(function):
 
 def create_otp(email, purpose):
 
+    api_key = app.config.get("RESEND_API_KEY")
+    sender = app.config.get("EMAIL_FROM")
+
+    if not api_key or not sender:
+        raise RuntimeError(
+            "RESEND_API_KEY or EMAIL_FROM is missing in Render."
+        )
+
     OTPChallenge.query.filter_by(
         email=email,
         purpose=purpose,
@@ -180,17 +181,23 @@ def create_otp(email, purpose):
     db.session.add(challenge)
     db.session.commit()
 
-    message = Message(
-        subject="DUODECODE Verification Code",
-        recipients=[email],
-        body=(
-            f"Your DUODECODE verification code is {code}.\n\n"
-            "This code expires in 5 minutes.\n"
-            "If you did not request this code, ignore this email."
-        )
-    )
+    try:
+        resend.api_key = api_key
 
-    mail.send(message)
+        resend.Emails.send({
+            "from": sender,
+            "to": [email],
+            "subject": "DUODECODE Verification Code",
+            "text": (
+                f"Your DUODECODE verification code is {code}.\n\n"
+                "This code expires in 5 minutes.\n"
+                "If you did not request this code, ignore this email."
+            )
+        })
+
+    except Exception:
+        app.logger.exception("Resend email delivery failed")
+        raise
 
 
 def verify_otp(email, purpose, code):
@@ -786,49 +793,83 @@ def health():
 
 
 # ==================================================
-# 21. DATABASE INITIALIZATION AND MIGRATION
+# 21. DATABASE INITIALIZATION AND SAFE MIGRATIONS
 # ==================================================
 
 with app.app_context():
 
     db.create_all()
 
-    # Fix old PostgreSQL OTP hash column (64 to 255)
-    with db.engine.begin() as connection:
-        connection.execute(
-            db.text(
-                "ALTER TABLE otp_challenge "
-                "ALTER COLUMN code_hash TYPE VARCHAR(255)"
+    inspector = inspect(db.engine)
+    table_names = inspector.get_table_names()
+
+    # Update OTP hash column if required
+    if "otp_challenge" in table_names:
+
+        with db.engine.begin() as connection:
+            connection.execute(
+                db.text(
+                    "ALTER TABLE otp_challenge "
+                    "ALTER COLUMN code_hash TYPE VARCHAR(255)"
+                )
             )
-        )
 
-    app.logger.info(
-        "OTP code_hash column updated to VARCHAR(255)."
-    )
-
-    # Add created_at if missing in an older user table
+    # Add created_at to older user tables if missing
     inspector = inspect(db.engine)
 
     if "user" in inspector.get_table_names():
 
-        columns = [
+        user_columns = {
             column["name"]
             for column in inspector.get_columns("user")
-        ]
+        }
 
-        if "created_at" not in columns:
+        if "created_at" not in user_columns:
 
             with db.engine.begin() as connection:
                 connection.execute(
                     db.text(
                         'ALTER TABLE "user" '
-                        'ADD COLUMN created_at TIMESTAMP'
+                        'ADD COLUMN IF NOT EXISTS '
+                        'created_at TIMESTAMP'
                     )
                 )
 
-            app.logger.info(
-                "Added missing user.created_at column."
-            )
+    # Add missing profile columns without deleting existing records
+    inspector = inspect(db.engine)
+
+    if "profile" in inspector.get_table_names():
+
+        profile_columns = {
+            column["name"]
+            for column in inspector.get_columns("profile")
+        }
+
+        profile_migrations = {
+            "role": "VARCHAR(30)",
+            "college": "VARCHAR(150)",
+            "course": "VARCHAR(100)",
+            "year": "VARCHAR(30)",
+            "bio": "TEXT",
+            "known_topics": "TEXT",
+            "learning_topics": "TEXT"
+        }
+
+        with db.engine.begin() as connection:
+
+            for column_name, column_type in profile_migrations.items():
+
+                if column_name not in profile_columns:
+
+                    connection.execute(
+                        db.text(
+                            f'ALTER TABLE profile '
+                            f'ADD COLUMN IF NOT EXISTS '
+                            f'{column_name} {column_type}'
+                        )
+                    )
+
+    app.logger.info("Database initialization and migrations completed.")
 
 
 # ==================================================
